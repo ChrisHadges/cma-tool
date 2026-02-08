@@ -14,7 +14,7 @@ export async function GET() {
   try {
     const data = await searchListings({
       status: ["A"],
-      type: ["residential"],
+      type: ["sale"],
       class: ["residential"],
       resultsPerPage: 6,
       sortBy: "updatedOnDesc",
