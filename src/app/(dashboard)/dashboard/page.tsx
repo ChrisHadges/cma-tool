@@ -146,22 +146,81 @@ export default function DashboardPage() {
     }
   };
 
+  const [downloadingPdf, setDownloadingPdf] = useState<number | null>(null);
+
   const handleDownloadPdf = async (reportId: number, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    setDownloadingPdf(reportId);
     try {
-      const res = await fetch(`/api/cma/${reportId}/pdf`, { method: "POST" });
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `CMA-Report-${reportId}.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
+      // Step 1: Check Canva connection
+      const statusRes = await fetch("/api/canva/status");
+      const statusData = await statusRes.json();
+
+      if (!statusData.connected) {
+        window.location.href = `/api/canva/auth?returnTo=/dashboard`;
+        return;
       }
+
+      // Step 2: Generate Canva design
+      const genRes = await fetch("/api/canva/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportId }),
+      });
+
+      if (!genRes.ok) {
+        if (genRes.status === 401) {
+          window.location.href = `/api/canva/auth?returnTo=/dashboard`;
+          return;
+        }
+        throw new Error("Failed to generate design");
+      }
+
+      const genData = await genRes.json();
+      const designId = genData.design?.id;
+      if (!designId) throw new Error("No design ID");
+
+      // Step 3: Export as PDF
+      const exportRes = await fetch("/api/canva/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ designId, format: { type: "pdf" } }),
+      });
+
+      if (!exportRes.ok) throw new Error("Export failed");
+
+      const exportData = await exportRes.json();
+      const downloadUrl = exportData.downloadUrl || exportData.downloadUrls?.[0];
+      if (!downloadUrl) throw new Error("No download URL");
+
+      // Step 4: Download
+      const pdfRes = await fetch(downloadUrl);
+      const blob = await pdfRes.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `CMA-Report-${reportId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch {
-      // Silently fail
+      // Fallback: try the basic PDF endpoint
+      try {
+        const res = await fetch(`/api/cma/${reportId}/pdf`, { method: "POST" });
+        if (res.ok) {
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `CMA-Report-${reportId}.pdf`;
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+      } catch {
+        // Silently fail
+      }
+    } finally {
+      setDownloadingPdf(null);
     }
   };
 
@@ -363,9 +422,14 @@ export default function DashboardPage() {
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={(e) => handleDownloadPdf(report.id, e)}
+                            disabled={downloadingPdf === report.id}
                             title="Download PDF"
                           >
-                            <Download className="h-3.5 w-3.5" />
+                            {downloadingPdf === report.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Download className="h-3.5 w-3.5" />
+                            )}
                           </Button>
                           {/* Create in Canva */}
                           <Button

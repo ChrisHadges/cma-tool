@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,7 @@ import {
   Loader2,
   MapPin,
   Sparkles,
+  Navigation,
 } from "lucide-react";
 import { PropertyCard } from "@/components/property/PropertyCard";
 
@@ -53,6 +54,18 @@ const INITIAL_FILTERS: SearchFilters = {
   sortBy: "createdOnDesc",
 };
 
+interface AutocompleteSuggestion {
+  name: string;
+  type: string;
+  map?: { latitude: number; longitude: number };
+  address?: {
+    state?: string;
+    country?: string;
+    city?: string;
+    area?: string;
+  };
+}
+
 const PRICE_OPTIONS = [
   { value: "", label: "Any" },
   { value: "100000", label: "$100K" },
@@ -79,6 +92,15 @@ export default function SearchPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
+  // Autocomplete state
+  const [suggestions, setSuggestions] = useState<AutocompleteSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+  const autocompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const activeFilterCount = [
     filters.city,
     filters.propertyType,
@@ -91,6 +113,125 @@ export default function SearchPage() {
     filters.lastStatus,
     filters.status !== "A" ? filters.status : "",
   ].filter(Boolean).length;
+
+  // Fetch autocomplete suggestions
+  const fetchSuggestions = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    setLoadingSuggestions(true);
+    try {
+      const res = await fetch(
+        `/api/properties/autocomplete?search=${encodeURIComponent(query)}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        // Take top 8 suggestions
+        const items = (Array.isArray(data) ? data : data.suggestions || []).slice(0, 8);
+        setSuggestions(items);
+        setShowSuggestions(items.length > 0);
+        setHighlightedIndex(-1);
+      }
+    } catch {
+      setSuggestions([]);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  }, []);
+
+  // Handle search input changes with debounced autocomplete
+  const handleSearchInputChange = (value: string) => {
+    updateFilter("search", value);
+    if (autocompleteTimerRef.current) {
+      clearTimeout(autocompleteTimerRef.current);
+    }
+    autocompleteTimerRef.current = setTimeout(() => {
+      fetchSuggestions(value);
+    }, 250);
+  };
+
+  // Handle selecting an autocomplete suggestion
+  const handleSelectSuggestion = (suggestion: AutocompleteSuggestion) => {
+    setShowSuggestions(false);
+    setSuggestions([]);
+
+    // Determine if it's a city — set city filter; otherwise use as search term
+    if (suggestion.type === "city" || suggestion.type === "community") {
+      updateFilter("search", "");
+      updateFilter("city", suggestion.name);
+    } else if (suggestion.type === "neighborhood" || suggestion.type === "area") {
+      updateFilter("search", suggestion.name);
+      updateFilter("city", "");
+    } else {
+      // Address or other — use as search
+      updateFilter("search", suggestion.name);
+    }
+
+    // Trigger search after a tick so state is updated
+    setTimeout(() => {
+      handleSearch();
+    }, 50);
+  };
+
+  // Close suggestions on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(e.target as Node) &&
+        searchInputRef.current &&
+        !searchInputRef.current.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Handle keyboard navigation in suggestions
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (showSuggestions && suggestions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlightedIndex((prev) =>
+          prev < suggestions.length - 1 ? prev + 1 : 0
+        );
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightedIndex((prev) =>
+          prev > 0 ? prev - 1 : suggestions.length - 1
+        );
+      } else if (e.key === "Enter" && highlightedIndex >= 0) {
+        e.preventDefault();
+        handleSelectSuggestion(suggestions[highlightedIndex]);
+        return;
+      } else if (e.key === "Escape") {
+        setShowSuggestions(false);
+        return;
+      }
+    }
+    if (e.key === "Enter") {
+      setShowSuggestions(false);
+      handleSearch();
+    }
+  };
+
+  // Get icon for suggestion type
+  const getSuggestionIcon = (type: string) => {
+    switch (type) {
+      case "city":
+      case "community":
+        return <Building2 className="h-4 w-4 text-muted-foreground" />;
+      case "neighborhood":
+      case "area":
+        return <Navigation className="h-4 w-4 text-muted-foreground" />;
+      default:
+        return <MapPin className="h-4 w-4 text-muted-foreground" />;
+    }
+  };
 
   const handleSearch = useCallback(async () => {
     setLoading(true);
@@ -156,6 +297,7 @@ export default function SearchPage() {
     filters.status,
     filters.lastStatus,
     filters.sortBy,
+    filters.city,
   ]);
 
   // Build active filter badges
@@ -209,17 +351,83 @@ export default function SearchPage() {
         {/* Search Input Row */}
         <div className="mt-5 flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground z-10" />
             <Input
+              ref={searchInputRef}
               placeholder="Enter an address, MLS#, neighborhood, or city..."
               className="h-12 pl-12 pr-4 text-base rounded-xl border-border/60 bg-white dark:bg-gray-900 shadow-sm focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary"
               value={filters.search}
-              onChange={(e) => updateFilter("search", e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              onChange={(e) => handleSearchInputChange(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              onFocus={() => {
+                if (suggestions.length > 0) setShowSuggestions(true);
+              }}
+              autoComplete="off"
             />
+
+            {/* Autocomplete Dropdown */}
+            {showSuggestions && (
+              <div
+                ref={suggestionsRef}
+                className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 rounded-xl border border-border/60 shadow-lg z-50 overflow-hidden max-h-[340px] overflow-y-auto"
+              >
+                {loadingSuggestions && (
+                  <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Searching...
+                  </div>
+                )}
+                {suggestions.map((suggestion, index) => (
+                  <button
+                    key={`${suggestion.name}-${suggestion.type}-${index}`}
+                    onClick={() => handleSelectSuggestion(suggestion)}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-muted/50 transition-colors ${
+                      index === highlightedIndex
+                        ? "bg-primary/5 text-primary"
+                        : ""
+                    }`}
+                  >
+                    <div className="shrink-0">
+                      {getSuggestionIcon(suggestion.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">
+                        {suggestion.name}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {suggestion.address?.state && (
+                          <span>{suggestion.address.state}</span>
+                        )}
+                        {suggestion.address?.country && (
+                          <span>
+                            {suggestion.address.state ? ", " : ""}
+                            {suggestion.address.country}
+                          </span>
+                        )}
+                        {!suggestion.address?.state &&
+                          !suggestion.address?.country && (
+                            <span className="capitalize">
+                              {suggestion.type}
+                            </span>
+                          )}
+                      </div>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className="shrink-0 text-[10px] px-1.5 py-0 h-5 capitalize rounded-md"
+                    >
+                      {suggestion.type}
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <Button
-            onClick={handleSearch}
+            onClick={() => {
+              setShowSuggestions(false);
+              handleSearch();
+            }}
             disabled={loading}
             className="h-12 px-8 rounded-xl text-base font-semibold canva-gradient border-0 text-white hover:opacity-90 transition-opacity"
           >

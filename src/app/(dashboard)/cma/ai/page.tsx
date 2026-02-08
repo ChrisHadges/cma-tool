@@ -533,20 +533,80 @@ export default function AiCmaBuilderPage() {
     if (!progress.reportId) return;
     setPublishAction("pdf");
     try {
-      const res = await fetch(`/api/cma/${progress.reportId}/pdf`, {
-        method: "POST",
-      });
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `CMA-Report-${progress.reportId}.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
+      // Step 1: Check Canva connection
+      const statusRes = await fetch("/api/canva/status");
+      const statusData = await statusRes.json();
+
+      if (!statusData.connected) {
+        // Redirect to Canva auth then come back
+        window.location.href = `/api/canva/auth?returnTo=/cma/ai`;
+        return;
       }
-    } catch {
-      // Handle error silently
+
+      // Step 2: Generate the Canva design (if not already created)
+      addMessage("assistant", "📄 Generating your Canva design for PDF export...");
+
+      const genRes = await fetch("/api/canva/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportId: progress.reportId }),
+      });
+
+      if (!genRes.ok) {
+        if (genRes.status === 401) {
+          window.location.href = `/api/canva/auth?returnTo=/cma/ai`;
+          return;
+        }
+        throw new Error("Failed to generate Canva design");
+      }
+
+      const genData = await genRes.json();
+      const designId = genData.design?.id;
+
+      if (!designId) {
+        throw new Error("No design ID returned");
+      }
+
+      addMessage("assistant", "⏳ Exporting design as PDF...");
+
+      // Step 3: Export the Canva design as PDF
+      const exportRes = await fetch("/api/canva/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          designId,
+          format: { type: "pdf" },
+        }),
+      });
+
+      if (!exportRes.ok) {
+        throw new Error("Failed to export PDF");
+      }
+
+      const exportData = await exportRes.json();
+      const downloadUrl = exportData.downloadUrl || exportData.downloadUrls?.[0];
+
+      if (!downloadUrl) {
+        throw new Error("No download URL returned");
+      }
+
+      // Step 4: Download the PDF
+      const pdfRes = await fetch(downloadUrl);
+      const blob = await pdfRes.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `CMA-Report-${progress.reportId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      addMessage("assistant", "✅ PDF downloaded successfully!");
+    } catch (error) {
+      console.error("PDF download error:", error);
+      addMessage(
+        "assistant",
+        "❌ There was an issue generating the PDF. Make sure your Canva account is connected and try again."
+      );
     } finally {
       setPublishAction(null);
     }
@@ -581,6 +641,10 @@ export default function AiCmaBuilderPage() {
       if (res.ok) {
         const data = await res.json();
         setWebsiteUrl(data.siteUrl);
+        // Auto-open the published website in a new tab
+        if (data.siteUrl) {
+          window.open(data.siteUrl, "_blank");
+        }
       }
     } catch {
       // Handle error silently
