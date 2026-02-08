@@ -179,6 +179,10 @@ export async function POST(request: NextRequest) {
       imageFieldMap["subject_image_3"] = subjectImages[2];
       imageFieldMap["property_image_3"] = subjectImages[2];
     }
+    if (subjectImages[3]) {
+      imageFieldMap["subject_image_4"] = subjectImages[3];
+      imageFieldMap["property_image_4"] = subjectImages[3];
+    }
 
     // Map comp image fields
     for (let i = 0; i < comps.length && i < 4; i++) {

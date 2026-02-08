@@ -78,6 +78,7 @@ export function mapCmaToAutofillData(
     textMappings[`${prefix}_sqft`] = comp.property.sqft
       ? `${comp.property.sqft.toLocaleString()} sq ft`
       : "";
+    textMappings[`${prefix}_year_built`] = String(comp.property.yearBuilt || "");
     textMappings[`${prefix}_adjustment`] = formatPrice(comp.totalAdjustment);
     textMappings[`${prefix}_distance`] = `${comp.distanceKm.toFixed(1)} km`;
     textMappings[`${prefix}_sold_date`] = comp.property.soldDate || "";
