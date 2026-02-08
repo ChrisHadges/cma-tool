@@ -14,6 +14,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { designId, format } = body;
 
+    console.log("Export request:", { designId, format });
+
     if (!designId || !format) {
       return NextResponse.json(
         { error: "designId and format are required" },
@@ -22,6 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await exportDesign(accessToken, designId, format);
+    console.log("Export result:", result);
 
     return NextResponse.json(result);
   } catch (error) {

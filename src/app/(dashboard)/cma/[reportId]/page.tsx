@@ -12,13 +12,10 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Home,
   BarChart3,
-  FileText,
   Download,
-  ArrowRight,
   ArrowLeft,
   DollarSign,
   TrendingUp,
@@ -56,8 +53,6 @@ export default function CmaReportPage() {
   const reportId = params.reportId as string;
   const [report, setReport] = useState<CmaReport | null>(null);
   const [loading, setLoading] = useState(true);
-  const [generatingPdf, setGeneratingPdf] = useState(false);
-  const [pdfSuccess, setPdfSuccess] = useState(false);
   const [creatingCanva, setCreatingCanva] = useState(false);
   const [canvaSuccess, setCanvaSuccess] = useState(false);
   const [publishingWebsite, setPublishingWebsite] = useState(false);
@@ -81,28 +76,6 @@ export default function CmaReportPage() {
     }
     fetchReport();
   }, [reportId]);
-
-  const handleDownloadPdf = async () => {
-    setGeneratingPdf(true);
-    try {
-      const res = await fetch(`/api/cma/${reportId}/pdf`, { method: "POST" });
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `CMA-Report-${reportId}.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
-        setPdfSuccess(true);
-        setTimeout(() => setPdfSuccess(false), 3000);
-      }
-    } catch {
-      // Silently fail
-    } finally {
-      setGeneratingPdf(false);
-    }
-  };
 
   const handleCreateInCanva = async () => {
     // If already has a Canva design, open it
@@ -326,41 +299,7 @@ export default function CmaReportPage() {
       {/* ─── Export Actions ─────────────────────────────────────── */}
       <div>
         <h2 className="text-lg font-semibold mb-3">Quick Actions</h2>
-        <div className="grid gap-4 md:grid-cols-3">
-          {/* PDF Download */}
-          <Card className="border-0 shadow-md">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 shrink-0">
-                  <FileText className="h-6 w-6 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-sm">Download PDF</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Client-ready PDF with photos, comps &amp; pricing
-                  </p>
-                </div>
-                <Button
-                  onClick={handleDownloadPdf}
-                  disabled={generatingPdf}
-                  size="sm"
-                  className="rounded-xl shrink-0"
-                >
-                  {generatingPdf ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : pdfSuccess ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <>
-                      <Download className="h-4 w-4 mr-1" />
-                      PDF
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
+        <div className="grid gap-4 md:grid-cols-2">
           {/* Create in Canva */}
           <Card className="border-0 shadow-md overflow-hidden">
             <div className="h-1 canva-gradient" />

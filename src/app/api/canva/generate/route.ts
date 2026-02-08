@@ -140,6 +140,8 @@ export async function POST(request: NextRequest) {
       bedrooms: c.bedrooms || undefined,
       bathrooms: c.bathrooms || undefined,
       sqft: c.sqft || undefined,
+      yearBuilt: c.yearBuilt || undefined,
+      lotSqft: c.lotSqft || undefined,
       soldPrice: c.soldPrice ? Number(c.soldPrice) : undefined,
       soldDate: c.soldDate ? c.soldDate.toISOString().split("T")[0] : undefined,
       images: c.images || undefined,
@@ -152,6 +154,13 @@ export async function POST(request: NextRequest) {
       cmaResult,
       dataset,
       report.title
+    );
+
+    // Debug: log template fields and mapped data
+    console.log("Template fields:", Object.keys(dataset.fields));
+    console.log("Mapped autofill text fields:", Object.entries(autofillData)
+      .filter(([, v]) => v.type === "text")
+      .map(([k, v]) => `${k}=${(v as { text: string }).text}`)
     );
 
     // ── Upload property images ──────────────────────────────────
