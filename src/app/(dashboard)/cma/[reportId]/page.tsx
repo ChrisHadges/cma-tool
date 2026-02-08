@@ -33,6 +33,7 @@ import {
   Copy,
   Check,
 } from "lucide-react";
+import { CanvaTemplatePicker } from "@/components/canva-template-picker";
 
 interface CmaReport {
   id: number;
@@ -62,6 +63,7 @@ export default function CmaReportPage() {
   const [publishingWebsite, setPublishingWebsite] = useState(false);
   const [websiteUrl, setWebsiteUrl] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
 
   useEffect(() => {
     async function fetchReport() {
@@ -109,44 +111,32 @@ export default function CmaReportPage() {
       return;
     }
 
-    setCreatingCanva(true);
+    // Check Canva connection first
     try {
-      // Check Canva connection
       const statusRes = await fetch("/api/canva/status");
       const statusData = await statusRes.json();
 
       if (!statusData.connected) {
-        window.location.href = `/api/canva/auth?returnTo=/cma/${reportId}/export`;
+        window.location.href = `/api/canva/auth?returnTo=/cma/${reportId}`;
         return;
       }
 
-      // Create the design
-      const res = await fetch("/api/canva/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reportId: parseInt(reportId) }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.design?.editUrl) {
-          setReport((prev) =>
-            prev
-              ? { ...prev, canvaDesignId: data.design.id, canvaDesignUrl: data.design.editUrl }
-              : prev
-          );
-          setCanvaSuccess(true);
-          setTimeout(() => setCanvaSuccess(false), 5000);
-          window.open(data.design.editUrl, "_blank");
-        }
-      } else if (res.status === 401) {
-        window.location.href = `/api/canva/auth?returnTo=/cma/${reportId}/export`;
-      }
+      // Connected — open template picker
+      setShowTemplatePicker(true);
     } catch {
-      // Silently fail
-    } finally {
-      setCreatingCanva(false);
+      // If status check fails, try auth anyway
+      window.location.href = `/api/canva/auth?returnTo=/cma/${reportId}`;
     }
+  };
+
+  const handleCanvaDesignCreated = (design: { id: string; editUrl: string; title: string }) => {
+    setReport((prev) =>
+      prev
+        ? { ...prev, canvaDesignId: design.id, canvaDesignUrl: design.editUrl }
+        : prev
+    );
+    setCanvaSuccess(true);
+    setTimeout(() => setCanvaSuccess(false), 5000);
   };
 
   const handleCreateWebsite = async () => {
@@ -483,6 +473,14 @@ export default function CmaReportPage() {
           </Card>
         </div>
       </div>
+
+      {/* Canva Template Picker Modal */}
+      <CanvaTemplatePicker
+        open={showTemplatePicker}
+        onOpenChange={setShowTemplatePicker}
+        reportId={reportId}
+        onDesignCreated={handleCanvaDesignCreated}
+      />
     </div>
   );
 }

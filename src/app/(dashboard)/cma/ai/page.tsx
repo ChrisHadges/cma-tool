@@ -31,6 +31,7 @@ import {
   Bath,
   Ruler,
 } from "lucide-react";
+import { CanvaTemplatePicker } from "@/components/canva-template-picker";
 
 interface Message {
   id: string;
@@ -89,6 +90,7 @@ export default function AiCmaBuilderPage() {
   const [publishAction, setPublishAction] = useState<string | null>(null);
   const [websiteUrl, setWebsiteUrl] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -350,34 +352,20 @@ export default function AiCmaBuilderPage() {
 
   const handleCreateCanva = async () => {
     if (!progress.reportId) return;
-    setPublishAction("canva");
+
     try {
       const statusRes = await fetch("/api/canva/status");
       const statusData = await statusRes.json();
 
       if (!statusData.connected) {
-        window.location.href = `/api/canva/auth?returnTo=/cma/${progress.reportId}/export`;
+        window.location.href = `/api/canva/auth?returnTo=/cma/ai`;
         return;
       }
 
-      const res = await fetch("/api/canva/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reportId: progress.reportId }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.design?.editUrl) {
-          window.open(data.design.editUrl, "_blank");
-        }
-      } else if (res.status === 401) {
-        window.location.href = `/api/canva/auth?returnTo=/cma/${progress.reportId}/export`;
-      }
+      // Connected — open template picker
+      setShowTemplatePicker(true);
     } catch {
-      // Handle error silently
-    } finally {
-      setPublishAction(null);
+      window.location.href = `/api/canva/auth?returnTo=/cma/ai`;
     }
   };
 
@@ -870,6 +858,21 @@ export default function AiCmaBuilderPage() {
           </Card>
         </div>
       </div>
+
+      {/* Canva Template Picker Modal */}
+      {progress.reportId && (
+        <CanvaTemplatePicker
+          open={showTemplatePicker}
+          onOpenChange={setShowTemplatePicker}
+          reportId={progress.reportId}
+          onDesignCreated={(design) => {
+            addMessage(
+              "assistant",
+              `Your Canva design "${design.title}" has been created! It's now open in a new tab.`
+            );
+          }}
+        />
+      )}
     </div>
   );
 }
