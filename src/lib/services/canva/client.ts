@@ -369,7 +369,9 @@ export async function autofillDesign(
 
     if (status === "success") {
       const design = pollResult.job.result?.design;
+      console.log("Autofill job succeeded — full result:", JSON.stringify(pollResult.job.result, null, 2));
       if (!design) throw new Error("Autofill succeeded but no design returned");
+      console.log("Autofill design ID:", design.id, "| URL:", design.url, "| edit_url:", design.urls?.edit_url);
       return {
         id: design.id,
         url: design.urls?.edit_url || design.urls?.view_url || design.url,
@@ -488,6 +490,7 @@ export async function exportDesign(
       };
     }>(`/exports/${jobId}`, accessToken);
 
+    console.log("Export poll response:", JSON.stringify(status.job, null, 2));
     if (status.job.status === "success" && status.job.urls?.[0]) {
       return {
         downloadUrl: status.job.urls[0],

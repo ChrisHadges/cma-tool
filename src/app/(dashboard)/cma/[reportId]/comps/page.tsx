@@ -139,12 +139,16 @@ export default function CompsPage() {
     }
   };
 
+  const MAX_COMPS = 4;
+
   const toggleComp = (mlsNumber: string) => {
     setSelectedComps((prev) => {
       const next = new Set(prev);
       if (next.has(mlsNumber)) {
         next.delete(mlsNumber);
       } else {
+        // Enforce max of 4 comps
+        if (next.size >= MAX_COMPS) return prev;
         next.add(mlsNumber);
       }
       return next;
@@ -193,14 +197,19 @@ export default function CompsPage() {
             Select and analyze comparable properties
           </p>
         </div>
-        <Button onClick={runCalculation} disabled={calculating}>
-          {calculating ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Calculator className="mr-2 h-4 w-4" />
-          )}
-          {calculating ? "Calculating..." : "Run Analysis"}
-        </Button>
+        <div className="flex items-center gap-3">
+          <Badge variant={selectedComps.size === MAX_COMPS ? "default" : "secondary"}>
+            {selectedComps.size} / {MAX_COMPS} comps selected
+          </Badge>
+          <Button onClick={runCalculation} disabled={calculating || selectedComps.size !== MAX_COMPS}>
+            {calculating ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Calculator className="mr-2 h-4 w-4" />
+            )}
+            {calculating ? "Calculating..." : "Run Analysis"}
+          </Button>
+        </div>
       </div>
 
       {/* Price Recommendation */}
@@ -407,15 +416,20 @@ export default function CompsPage() {
 
           {similarListings.length > 0 && (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {similarListings.map((listing) => (
-                <PropertyCard
-                  key={listing.mlsNumber as string}
-                  listing={listing}
-                  selectable
-                  selected={selectedComps.has(listing.mlsNumber as string)}
-                  onSelect={() => toggleComp(listing.mlsNumber as string)}
-                />
-              ))}
+              {similarListings.map((listing) => {
+                const mlsNum = listing.mlsNumber as string;
+                const isSelected = selectedComps.has(mlsNum);
+                return (
+                  <PropertyCard
+                    key={mlsNum}
+                    listing={listing}
+                    selectable
+                    selected={isSelected}
+                    disabled={!isSelected && selectedComps.size >= MAX_COMPS}
+                    onSelect={() => toggleComp(mlsNum)}
+                  />
+                );
+              })}
             </div>
           )}
         </CardContent>

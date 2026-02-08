@@ -237,12 +237,12 @@ export function CanvaTemplatePicker({
         {!loading && template && !createdDesign && (
           <div className="space-y-4">
             <div className="rounded-xl border-2 border-purple-500 ring-2 ring-purple-500/20 overflow-hidden shadow-md">
-              {/* Compact thumbnail */}
-              <div className="bg-muted overflow-hidden relative max-h-48">
+              {/* Scrollable thumbnail */}
+              <div className="bg-muted overflow-y-auto relative max-h-64">
                 <img
                   src={template.thumbnail.url}
                   alt={template.title}
-                  className="w-full h-full object-contain object-top"
+                  className="w-full h-auto"
                 />
                 <div className="absolute top-2 right-2">
                   <div className="flex h-6 w-6 items-center justify-center rounded-full canva-gradient shadow-lg">

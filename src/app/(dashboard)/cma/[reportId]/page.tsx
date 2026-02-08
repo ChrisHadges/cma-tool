@@ -23,12 +23,12 @@ import {
   MapPin,
   Palette,
   Loader2,
-  ExternalLink,
   CheckCircle2,
   Sparkles,
   Globe,
   Copy,
   Check,
+  ExternalLink,
 } from "lucide-react";
 import { CanvaTemplatePicker } from "@/components/canva-template-picker";
 
@@ -78,13 +78,8 @@ export default function CmaReportPage() {
   }, [reportId]);
 
   const handleCreateInCanva = async () => {
-    // If already has a Canva design, open it
-    if (report?.canvaDesignUrl) {
-      window.open(report.canvaDesignUrl, "_blank");
-      return;
-    }
-
-    // Check Canva connection first
+    // Check Canva connection first, then always open template picker
+    // (even if a design already exists — allows re-generating with updated data)
     try {
       const statusRes = await fetch("/api/canva/status");
       const statusData = await statusRes.json();
@@ -309,13 +304,9 @@ export default function CmaReportPage() {
                   <Palette className="h-6 w-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-sm">
-                    {report.canvaDesignUrl ? "Open in Canva" : "Create in Canva"}
-                  </h3>
+                  <h3 className="font-semibold text-sm">Create in Canva</h3>
                   <p className="text-xs text-muted-foreground">
-                    {report.canvaDesignUrl
-                      ? "Edit your CMA presentation in Canva"
-                      : "Editable presentation with all CMA data"}
+                    Editable presentation with all CMA data
                   </p>
                 </div>
                 <Button
@@ -328,11 +319,6 @@ export default function CmaReportPage() {
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : canvaSuccess ? (
                     <CheckCircle2 className="h-4 w-4" />
-                  ) : report.canvaDesignUrl ? (
-                    <>
-                      <ExternalLink className="h-4 w-4 mr-1" />
-                      Open
-                    </>
                   ) : (
                     <>
                       <Sparkles className="h-4 w-4 mr-1" />

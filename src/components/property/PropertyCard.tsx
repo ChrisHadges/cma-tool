@@ -15,9 +15,10 @@ interface PropertyCardProps {
   onSelect?: (listing: Record<string, unknown>) => void;
   selectable?: boolean;
   selected?: boolean;
+  disabled?: boolean;
 }
 
-export function PropertyCard({ listing, onSelect, selectable, selected }: PropertyCardProps) {
+export function PropertyCard({ listing, onSelect, selectable, selected, disabled }: PropertyCardProps) {
   const address = listing.address as Record<string, string>;
   const details = listing.details as Record<string, unknown>;
   const images = listing.images as string[];
@@ -38,9 +39,11 @@ export function PropertyCard({ listing, onSelect, selectable, selected }: Proper
   return (
     <Card
       className={`overflow-hidden transition-all ${
-        selectable ? "cursor-pointer hover:ring-2 hover:ring-primary" : ""
-      } ${selected ? "ring-2 ring-primary bg-primary/5" : ""}`}
-      onClick={() => selectable && onSelect?.(listing)}
+        selectable && !disabled ? "cursor-pointer hover:ring-2 hover:ring-primary" : ""
+      } ${selected ? "ring-2 ring-primary bg-primary/5" : ""} ${
+        disabled && !selected ? "opacity-50 cursor-not-allowed" : ""
+      }`}
+      onClick={() => selectable && !disabled && onSelect?.(listing)}
     >
       {/* Image */}
       <div className="relative aspect-[16/10] bg-muted">

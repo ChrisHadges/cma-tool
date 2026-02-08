@@ -207,10 +207,12 @@ export async function POST(request: NextRequest) {
 
     // Upload each unique image and assign to matching template fields
     const uploadedAssets: Record<string, string> = {}; // url -> asset_id
+    const imageFields = Object.entries(dataset.fields).filter(([, def]) => def.type === "image");
+    console.log("Image fields in template:", imageFields.map(([name]) => name));
+    console.log("Subject images available:", subjectImages.length);
+    console.log("Image field map:", Object.keys(imageFieldMap));
 
-    for (const [fieldName, fieldDef] of Object.entries(dataset.fields)) {
-      if (fieldDef.type !== "image") continue;
-
+    for (const [fieldName, fieldDef] of imageFields) {
       // Match template field name to our image map (fuzzy)
       const normalized = fieldName.toLowerCase().replace(/[^a-z0-9]/g, "_");
       const imageUrl =
@@ -221,17 +223,24 @@ export async function POST(request: NextRequest) {
         )?.[1] ||
         subjectImages[0]; // fallback: use subject photo for any unmatched image field
 
-      if (!imageUrl) continue;
+      if (!imageUrl) {
+        console.log(`No image URL for field "${fieldName}" — skipping`);
+        continue;
+      }
 
       try {
         // Reuse already-uploaded assets
         if (!uploadedAssets[imageUrl]) {
+          console.log(`Uploading image for field "${fieldName}":`, imageUrl.slice(0, 80));
           const asset = await uploadAssetFromUrl(
             accessToken,
             imageUrl,
             `CMA Photo - ${fieldName}`
           );
           uploadedAssets[imageUrl] = asset.id;
+          console.log(`Upload success: asset_id=${asset.id}`);
+        } else {
+          console.log(`Reusing asset for field "${fieldName}": asset_id=${uploadedAssets[imageUrl]}`);
         }
         autofillData[fieldName] = { type: "image", asset_id: uploadedAssets[imageUrl] };
       } catch (err) {
@@ -244,12 +253,19 @@ export async function POST(request: NextRequest) {
     const fullAddress = `${subject.streetAddress}, ${subject.city}, ${subject.state} ${subject.zip}`;
     const designTitle = report.title || `CMA Report - ${fullAddress}`;
 
+    // Log the final autofill data summary
+    const textFieldCount = Object.values(autofillData).filter(v => v.type === "text").length;
+    const imageFieldCount = Object.values(autofillData).filter(v => v.type === "image").length;
+    console.log(`Autofill data: ${textFieldCount} text fields, ${imageFieldCount} image fields`);
+    console.log("Starting autofill with templateId:", templateId);
     const design = await autofillDesign(
       accessToken,
       templateId,
       autofillData,
       designTitle
     );
+    console.log("Autofill returned design:", { id: design.id, editUrl: design.editUrl, url: design.url });
+    console.log("Template ID was:", templateId, "| New design ID:", design.id, "| Are different:", templateId !== design.id);
 
     // Save to database
     await db
