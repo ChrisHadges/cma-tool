@@ -82,17 +82,26 @@ export async function POST(request: NextRequest) {
     // ── Find or use template ────────────────────────────────────
 
     let templateId = requestedTemplateId;
+    console.log("Requested template ID from frontend:", requestedTemplateId || "(none — will auto-select)");
 
     if (!templateId) {
       // Search for brand templates with autofill data
+      // Always prefer the "Brix&Hart - CMA" template
       try {
         const templates = await searchBrandTemplates(accessToken, {
           dataset: "non_empty",
         });
         if (templates.items && templates.items.length > 0) {
-          // Use the first available template
-          templateId = templates.items[0].id;
-          console.log(`Using brand template: ${templates.items[0].title} (${templateId})`);
+          console.log("All available templates:", templates.items.map((t: { id: string; title: string }) => `${t.title} (${t.id})`));
+          // Look for the specific CMA template first
+          const cmaTemplate = templates.items.find((t: { title: string }) => t.title === "Brix&Hart - CMA");
+          if (cmaTemplate) {
+            templateId = cmaTemplate.id;
+            console.log(`Using CMA brand template: ${cmaTemplate.title} (${templateId})`);
+          } else {
+            templateId = templates.items[0].id;
+            console.log(`CMA template not found, using first template: ${templates.items[0].title} (${templateId})`);
+          }
         }
       } catch (err) {
         console.error("Failed to search brand templates:", err);
@@ -283,6 +292,7 @@ export async function POST(request: NextRequest) {
         title: designTitle,
         editUrl: design.editUrl || design.url,
         viewUrl: design.url,
+        thumbnailUrl: design.thumbnailUrl,
       },
     });
   } catch (error) {

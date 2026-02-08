@@ -38,6 +38,7 @@ interface CreatedDesign {
   id: string;
   editUrl: string;
   title: string;
+  thumbnailUrl?: string;
 }
 
 interface CanvaTemplatePickerProps {
@@ -136,6 +137,7 @@ export function CanvaTemplatePicker({
             id: data.design.id,
             editUrl: data.design.editUrl,
             title: data.design.title,
+            thumbnailUrl: data.design.thumbnailUrl,
           };
           setCreatedDesign(design);
           onDesignCreated?.(design);
@@ -173,9 +175,12 @@ export function CanvaTemplatePicker({
 
       if (res.ok) {
         const data = await res.json();
-        if (data.downloadUrl) {
-          // Open the download URL in a new tab to trigger download
-          window.open(data.downloadUrl, "_blank");
+        const urls: string[] = data.downloadUrls || (data.downloadUrl ? [data.downloadUrl] : []);
+        if (urls.length > 0) {
+          // Download all PDF parts (Canva may return one URL per page)
+          for (const url of urls) {
+            window.open(url, "_blank");
+          }
           setPdfDownloaded(true);
           setTimeout(() => setPdfDownloaded(false), 3000);
         } else {
@@ -325,6 +330,17 @@ export function CanvaTemplatePicker({
                 </p>
               </div>
             </div>
+
+            {/* Design thumbnail preview */}
+            {createdDesign.thumbnailUrl && (
+              <div className="rounded-xl border overflow-hidden bg-muted">
+                <img
+                  src={createdDesign.thumbnailUrl}
+                  alt={createdDesign.title}
+                  className="w-full h-auto"
+                />
+              </div>
+            )}
 
             {/* Action buttons */}
             <div className="grid gap-3">

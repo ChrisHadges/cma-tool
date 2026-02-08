@@ -58,6 +58,7 @@ export interface CanvaExportFormat {
 
 export interface CanvaExportResult {
   downloadUrl: string;
+  downloadUrls: string[];
   format: string;
 }
 

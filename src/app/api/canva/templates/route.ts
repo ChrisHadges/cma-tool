@@ -23,6 +23,11 @@ export async function GET(request: NextRequest) {
       continuation,
     });
 
+    // Log available templates for debugging
+    if (result.items) {
+      console.log("Available brand templates:", result.items.map((t: { id: string; title: string }) => `${t.title} (${t.id})`));
+    }
+
     return NextResponse.json(result);
   } catch (error) {
     console.error("Canva templates error:", error);

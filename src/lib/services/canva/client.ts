@@ -330,7 +330,7 @@ export async function autofillDesign(
   templateId: string,
   data: CanvaAutofillData,
   title?: string
-): Promise<{ id: string; url: string; editUrl: string }> {
+): Promise<{ id: string; url: string; editUrl: string; thumbnailUrl?: string }> {
   // Step 1: Start the autofill job
   const jobResult = await canvaRequest<{
     job: { id: string; status: string };
@@ -359,6 +359,7 @@ export async function autofillDesign(
             id: string;
             url: string;
             urls?: { edit_url?: string; view_url?: string };
+            thumbnail?: { url: string };
           };
         };
         error?: { code: string; message: string };
@@ -376,6 +377,7 @@ export async function autofillDesign(
         id: design.id,
         url: design.urls?.edit_url || design.urls?.view_url || design.url,
         editUrl: design.urls?.edit_url || design.url,
+        thumbnailUrl: design.thumbnail?.url,
       };
     }
 
@@ -492,8 +494,10 @@ export async function exportDesign(
 
     console.log("Export poll response:", JSON.stringify(status.job, null, 2));
     if (status.job.status === "success" && status.job.urls?.[0]) {
+      console.log(`Export complete: ${status.job.urls.length} download URL(s)`);
       return {
         downloadUrl: status.job.urls[0],
+        downloadUrls: status.job.urls,
         format: format.type,
       };
     }
