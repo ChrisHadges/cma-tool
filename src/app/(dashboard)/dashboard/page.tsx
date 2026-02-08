@@ -17,7 +17,6 @@ import {
   PlusCircle,
   FileText,
   TrendingUp,
-  Home,
   Trash2,
   Sparkles,
   ArrowRight,
@@ -48,6 +47,7 @@ interface CmaReport {
   sqft: number | null;
   canvaDesignId: string | null;
   canvaDesignUrl: string | null;
+  isPublished: boolean;
 }
 
 export default function DashboardPage() {
@@ -208,30 +208,17 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card className="border-0 shadow-md">
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-                <FileText className="h-6 w-6 text-primary" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100">
+                <FileText className="h-6 w-6 text-amber-600" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Reports</p>
-                <p className="text-3xl font-bold">{reports.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-md">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100">
-                <TrendingUp className="h-6 w-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">In Progress</p>
+                <p className="text-sm text-muted-foreground">Drafts</p>
                 <p className="text-3xl font-bold">
-                  {reports.filter((r) => r.status === "in_progress" || r.status === "draft").length}
+                  {reports.filter((r) => !r.isPublished).length}
                 </p>
               </div>
             </div>
@@ -241,12 +228,12 @@ export default function DashboardPage() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-100">
-                <Home className="h-6 w-6 text-green-600" />
+                <TrendingUp className="h-6 w-6 text-green-600" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Completed</p>
+                <p className="text-sm text-muted-foreground">Published</p>
                 <p className="text-3xl font-bold">
-                  {reports.filter((r) => r.status === "completed").length}
+                  {reports.filter((r) => r.isPublished).length}
                 </p>
               </div>
             </div>
