@@ -16,7 +16,6 @@ import {
   DollarSign,
   BarChart3,
   CheckCircle2,
-  AlertCircle,
   Bot,
   User,
   FileText,
@@ -30,6 +29,7 @@ import {
   BedDouble,
   Bath,
   Ruler,
+  Building2,
 } from "lucide-react";
 import { CanvaTemplatePicker } from "@/components/canva-template-picker";
 
@@ -47,6 +47,10 @@ interface CmaProgress {
   pricing: boolean;
   reportCreated: boolean;
   reportId: number | null;
+  // Store data for report creation
+  subjectData: Record<string, unknown> | null;
+  compsData: Record<string, unknown>[] | null;
+  analysisResult: Record<string, unknown> | null;
 }
 
 interface FeaturedProperty {
@@ -69,7 +73,7 @@ export default function AiCmaBuilderPage() {
       id: "welcome",
       role: "assistant",
       content:
-        "Hi! I'm your AI CMA assistant. I'll help you create a Comparative Market Analysis step by step.\n\nTo get started, tell me about the property you'd like to analyze. You can provide:\n\n- An **MLS number** (e.g., \"MLS C1234567\")\n- A **property address** (e.g., \"123 Main St, Toronto, ON\")\n- Or just describe the property and area\n\nOr choose from a suggested property below!",
+        "Hi! I'm your AI CMA assistant. Enter an MLS number or property address and I'll build your CMA automatically.\n\nOr pick one of the suggested properties below to get started!",
       timestamp: new Date(),
     },
   ]);
@@ -82,6 +86,9 @@ export default function AiCmaBuilderPage() {
     pricing: false,
     reportCreated: false,
     reportId: null,
+    subjectData: null,
+    compsData: null,
+    analysisResult: null,
   });
   const [featuredProperties, setFeaturedProperties] = useState<
     FeaturedProperty[]
@@ -127,59 +134,157 @@ export default function AiCmaBuilderPage() {
     return msg;
   };
 
+  // ─── Helper: format listing data for display ──────────────────
+  const formatListingInfo = (listing: Record<string, unknown>) => {
+    const addr = listing.address as Record<string, string> | undefined;
+    const details = listing.details as Record<string, unknown> | undefined;
+
+    const streetAddress = addr
+      ? [addr.streetNumber, addr.streetName, addr.streetSuffix].filter(Boolean).join(" ")
+      : (listing.streetAddress as string) || "Unknown";
+    const city = addr?.city || (listing.city as string) || "";
+    const state = addr?.state || (listing.state as string) || "";
+    const beds = details?.numBedrooms || listing.bedrooms || "?";
+    const baths = details?.numBathrooms || listing.bathrooms || "?";
+    const sqft = details?.sqft || listing.sqft || "?";
+    const price = listing.listPrice || listing.price;
+    const yearBuilt = details?.yearBuilt || listing.yearBuilt || "?";
+    const propType = details?.propertyType || listing.propertyType || "Residential";
+
+    return { streetAddress, city, state, beds, baths, sqft, price, yearBuilt, propType };
+  };
+
+  // ─── Helper: build subject property data for DB ───────────────
+  const buildSubjectData = (listing: Record<string, unknown>) => {
+    const addr = listing.address as Record<string, string> | undefined;
+    const details = listing.details as Record<string, unknown> | undefined;
+    const mapData = listing.map as Record<string, number> | undefined;
+    const images = listing.images as string[] | undefined;
+
+    return {
+      mlsNumber: listing.mlsNumber as string,
+      streetAddress: addr
+        ? [addr.streetNumber, addr.streetName, addr.streetSuffix].filter(Boolean).join(" ")
+        : "Unknown",
+      city: addr?.city || "",
+      state: addr?.state || "ON",
+      zip: addr?.zip || "00000",
+      country: "CA",
+      latitude: mapData?.latitude,
+      longitude: mapData?.longitude,
+      propertyType: details?.propertyType as string | undefined,
+      style: details?.style as string | undefined,
+      bedrooms: details?.numBedrooms as number | undefined,
+      bedroomsPlus: details?.numBedroomsPlus as number | undefined,
+      bathrooms: details?.numBathrooms as number | undefined,
+      bathroomsHalf: details?.numBathroomsHalf as number | undefined,
+      sqft: typeof details?.sqft === "string" ? parseInt(details.sqft, 10) || undefined : details?.sqft as number | undefined,
+      yearBuilt: typeof details?.yearBuilt === "string" ? parseInt(details.yearBuilt, 10) || undefined : details?.yearBuilt as number | undefined,
+      garage: details?.garage as string | undefined,
+      garageSpaces: listing.numGarageSpaces as number | undefined,
+      basement: details?.basement1 as string | undefined,
+      heating: details?.heating as string | undefined,
+      cooling: details?.airConditioning as string | undefined,
+      pool: details?.swimmingPool as string | undefined,
+      listPrice: listing.listPrice ? Number(listing.listPrice) : undefined,
+      taxesAnnual: (listing.taxes as Record<string, number> | undefined)?.annualAmount,
+      daysOnMarket: listing.daysOnMarket as number | undefined,
+      description: details?.description as string | undefined,
+      images: images || [],
+    };
+  };
+
+  // ─── Helper: build comp data for DB ───────────────────────────
+  const buildCompData = (listing: Record<string, unknown>) => {
+    const addr = listing.address as Record<string, string> | undefined;
+    const details = listing.details as Record<string, unknown> | undefined;
+    const mapData = listing.map as Record<string, number> | undefined;
+    const images = listing.images as string[] | undefined;
+
+    return {
+      mlsNumber: listing.mlsNumber as string,
+      streetAddress: addr
+        ? [addr.streetNumber, addr.streetName, addr.streetSuffix].filter(Boolean).join(" ")
+        : "Unknown",
+      city: addr?.city || "",
+      state: addr?.state || "ON",
+      zip: addr?.zip || "00000",
+      latitude: mapData?.latitude,
+      longitude: mapData?.longitude,
+      propertyType: details?.propertyType as string | undefined,
+      style: details?.style as string | undefined,
+      bedrooms: details?.numBedrooms as number | undefined,
+      bedroomsPlus: details?.numBedroomsPlus as number | undefined,
+      bathrooms: details?.numBathrooms as number | undefined,
+      bathroomsHalf: details?.numBathroomsHalf as number | undefined,
+      sqft: typeof details?.sqft === "string" ? parseInt(details.sqft, 10) || undefined : details?.sqft as number | undefined,
+      yearBuilt: typeof details?.yearBuilt === "string" ? parseInt(details.yearBuilt, 10) || undefined : details?.yearBuilt as number | undefined,
+      garage: details?.garage as string | undefined,
+      garageSpaces: listing.numGarageSpaces as number | undefined,
+      basement: details?.basement1 as string | undefined,
+      heating: details?.heating as string | undefined,
+      cooling: details?.airConditioning as string | undefined,
+      pool: details?.swimmingPool as string | undefined,
+      soldPrice: listing.soldPrice ? Number(listing.soldPrice) : undefined,
+      listPrice: listing.listPrice ? Number(listing.listPrice) : undefined,
+      soldDate: listing.soldDate as string | undefined,
+      daysOnMarket: listing.daysOnMarket as number | undefined,
+      images: images || [],
+    };
+  };
+
+  // ─── Main conversation processing ─────────────────────────────
   const processUserMessage = async (userMessage: string) => {
     setIsProcessing(true);
 
     try {
-      // Check for MLS number pattern
+      // ── Step 1: Subject Property Lookup ──────────────────────
       const mlsMatch = userMessage.match(/(?:MLS\s*#?\s*)?([A-Z]\d{5,8})/i);
 
       if (mlsMatch && !progress.subjectProperty) {
-        const mlsNumber = mlsMatch[1];
-        addMessage("assistant", `Looking up MLS# ${mlsNumber}...`);
+        const mlsNumber = mlsMatch[1].toUpperCase();
+        addMessage("assistant", `🔍 Looking up MLS# ${mlsNumber}...`);
 
         try {
           const res = await fetch(`/api/properties/${mlsNumber}`);
           if (res.ok) {
-            const data = await res.json();
-            const listing = data.listing || data;
+            const listing = await res.json();
+            const info = formatListingInfo(listing);
+            const subjectData = buildSubjectData(listing);
 
-            const address = `${listing.address?.streetAddress || listing.streetAddress || "Unknown"}, ${listing.address?.city || listing.city || ""}, ${listing.address?.state || listing.state || ""}`;
-            const beds = listing.details?.numBedrooms || listing.bedrooms || "?";
-            const baths = listing.details?.numBathrooms || listing.bathrooms || "?";
-            const sqft = listing.details?.sqft || listing.sqft || "?";
-            const price = listing.listPrice || listing.price;
-
-            setProgress((p) => ({ ...p, subjectProperty: true }));
+            setProgress((p) => ({ ...p, subjectProperty: true, subjectData }));
 
             addMessage(
               "assistant",
-              `Found it! Here's what I have:\n\n**${address}**\n- ${beds} Bed / ${baths} Bath / ${typeof sqft === "number" ? sqft.toLocaleString() : sqft} sqft\n- List Price: ${price ? `$${Number(price).toLocaleString()}` : "N/A"}\n\nShall I search for comparable properties in the area? I'll look for recently sold homes with similar features. You can also tell me if you'd like to adjust the search criteria (e.g., wider radius, different property type).`
+              `✅ Found it!\n\n**${info.streetAddress}, ${info.city}, ${info.state}**\n- ${info.beds} Bed / ${info.baths} Bath / ${typeof info.sqft === "number" ? info.sqft.toLocaleString() : info.sqft} sqft\n- ${info.propType} • Built ${info.yearBuilt}\n- List Price: ${info.price ? `$${Number(info.price).toLocaleString()}` : "N/A"}\n\nSearching for comparable sold properties nearby...`
             );
+
+            // ── Auto-advance: Find Comps ──────────────────────
+            await findComparables(mlsNumber, subjectData);
           } else {
             addMessage(
               "assistant",
-              `I couldn't find MLS# ${mlsNumber} in the database. This could mean:\n- The listing might not be in our coverage area\n- The MLS number might be different\n\nYou can try providing the full property address instead, or I can help you search for properties in a specific area.`
+              `I couldn't find MLS# ${mlsNumber}. Try a different MLS number or enter the full property address.`
             );
           }
         } catch {
           addMessage(
             "assistant",
-            "I had trouble connecting to the property database. Let's try a different approach — can you provide the full property address?"
+            "I had trouble connecting to the property database. Please try again or enter a property address instead."
           );
         }
       } else if (
         !progress.subjectProperty &&
-        (userMessage.toLowerCase().includes("search") ||
-          userMessage.match(/\d+\s+\w+\s+(st|ave|rd|dr|blvd|way|cres|ct|pl|ln)/i) ||
-          userMessage.toLowerCase().includes("address"))
+        userMessage.match(/\d+\s+\w+/i)
       ) {
-        addMessage("assistant", "Searching for properties matching your description...");
+        // ── Address search ────────────────────────────────────
+        addMessage("assistant", "🔍 Searching for properties matching your address...");
 
         try {
           const params = new URLSearchParams({
             search: userMessage,
             resultsPerPage: "5",
+            status: "A",
           });
           const res = await fetch(`/api/properties/search?${params}`);
           if (res.ok) {
@@ -187,88 +292,34 @@ export default function AiCmaBuilderPage() {
             const listings = data.listings || [];
 
             if (listings.length > 0) {
-              let response = `I found ${listings.length} matching properties:\n\n`;
+              let response = `Found ${listings.length} matching properties:\n\n`;
               listings.forEach((l: Record<string, unknown>, i: number) => {
-                const addr = `${l.streetAddress || l.address || "Unknown"}`;
-                const city = l.city || "";
-                const price = l.listPrice || l.soldPrice;
-                response += `**${i + 1}.** ${addr}, ${city}`;
-                if (price) response += ` — $${Number(price).toLocaleString()}`;
-                response += "\n";
+                const info = formatListingInfo(l);
+                response += `**${i + 1}.** ${info.streetAddress}, ${info.city}`;
+                if (info.price) response += ` — $${Number(info.price).toLocaleString()}`;
+                response += ` (MLS# ${l.mlsNumber})\n`;
               });
               response +=
-                "\nWhich property would you like to use as the subject? Reply with the number, or provide more details to narrow the search.";
+                "\nReply with the MLS number to select your subject property.";
               addMessage("assistant", response);
             } else {
               addMessage(
                 "assistant",
-                "I didn't find any matching properties. Could you try:\n- A more specific address\n- Just the city/neighborhood name\n- An MLS number if you have one"
+                "No matching properties found. Try entering an MLS number directly (e.g., \"C8147018\")."
               );
             }
           } else {
             addMessage(
               "assistant",
-              "The property search returned no results. Please try a different address or provide an MLS number."
+              "The search didn't return results. Try an MLS number instead."
             );
           }
         } catch {
           addMessage(
             "assistant",
-            "I had trouble searching for properties. Let's try entering the property details manually. What's the full address?"
+            "I had trouble searching. Please try an MLS number instead."
           );
         }
-      } else if (
-        progress.subjectProperty &&
-        !progress.comparables &&
-        (userMessage.toLowerCase().includes("yes") ||
-          userMessage.toLowerCase().includes("search") ||
-          userMessage.toLowerCase().includes("find") ||
-          userMessage.toLowerCase().includes("comp"))
-      ) {
-        addMessage("assistant", "Searching for comparable recently-sold properties nearby...");
-        await new Promise((r) => setTimeout(r, 1500));
-        setProgress((p) => ({ ...p, comparables: true }));
-
-        addMessage(
-          "assistant",
-          "I've identified several potential comparable properties based on:\n- Similar size and features\n- Recently sold (last 6 months)\n- Within 5km radius\n\nWould you like me to:\n1. **Run the full analysis** — I'll calculate adjustments and generate a price recommendation\n2. **Review the comps first** — I'll show you each comparable before proceeding\n3. **Adjust search criteria** — Change radius, timeframe, or features\n\nWhat would you prefer?"
-        );
-      } else if (
-        progress.comparables &&
-        !progress.pricing &&
-        (userMessage.toLowerCase().includes("run") ||
-          userMessage.toLowerCase().includes("analysis") ||
-          userMessage.toLowerCase().includes("calculate") ||
-          userMessage.match(/^1/))
-      ) {
-        addMessage(
-          "assistant",
-          "Running CMA analysis...\n\n- Calculating size adjustments...\n- Applying location adjustments...\n- Factoring age and condition...\n- Computing weighted price recommendation..."
-        );
-
-        await new Promise((r) => setTimeout(r, 2000));
-        setProgress((p) => ({ ...p, adjustments: true, pricing: true }));
-
-        addMessage(
-          "assistant",
-          "Analysis complete! Here's your price recommendation:\n\n**Suggested Price Range:**\n- Low: $685,000\n- **Recommended: $725,000**\n- High: $765,000\n\nThis is based on 6 comparable sales with adjustments for size, age, location, and features.\n\nWould you like me to:\n1. **Create the full CMA report** — Save it to your dashboard\n2. **Adjust the analysis** — Change comp weights or adjustment values\n3. **See detailed adjustments** — View the breakdown per comparable"
-        );
-      } else if (
-        progress.pricing &&
-        !progress.reportCreated &&
-        (userMessage.toLowerCase().includes("create") ||
-          userMessage.toLowerCase().includes("save") ||
-          userMessage.toLowerCase().includes("report") ||
-          userMessage.match(/^1/))
-      ) {
-        addMessage("assistant", "Creating your CMA report...");
-        await new Promise((r) => setTimeout(r, 1500));
-        setProgress((p) => ({ ...p, reportCreated: true, reportId: 999 }));
-
-        addMessage(
-          "assistant",
-          "Your CMA report has been created! Choose how you'd like to publish and share it:"
-        );
       } else if (
         progress.reportCreated &&
         (userMessage.toLowerCase().includes("view") ||
@@ -282,26 +333,136 @@ export default function AiCmaBuilderPage() {
       } else if (!progress.subjectProperty) {
         addMessage(
           "assistant",
-          "I'd love to help! To create a CMA, I first need to know which property to analyze. Could you provide:\n\n- An **MLS number** (e.g., \"C8147018\")\n- A **property address**\n- Or describe the area you're interested in\n\nThis will be the \"subject property\" that we'll compare against recent sales."
+          "Enter an MLS number (e.g., \"C8147018\") or a property address to get started."
         );
       } else {
         addMessage(
           "assistant",
-          "I'm not sure what you'd like to do next. Here are your options:\n\n" +
-            (!progress.comparables
-              ? "- Say **\"find comps\"** to search for comparable properties\n"
-              : "") +
-            (!progress.pricing
-              ? "- Say **\"run analysis\"** to calculate the CMA\n"
-              : "") +
-            (!progress.reportCreated
-              ? "- Say **\"create report\"** to save the CMA to your dashboard\n"
-              : "") +
-            "- Say **\"start over\"** to begin a new CMA"
+          "I'm working on your CMA. If you need to start over with a different property, click **Start over** in the sidebar."
         );
       }
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // ─── Auto-step: Find comparables ──────────────────────────────
+  const findComparables = async (
+    mlsNumber: string,
+    subjectData: Record<string, unknown>
+  ) => {
+    try {
+      const res = await fetch(`/api/properties/${mlsNumber}/similar`);
+      if (res.ok) {
+        const data = await res.json();
+        const listings = data.listings || [];
+
+        // Take the top 4 most relevant comps
+        const topComps = listings.slice(0, 4);
+
+        if (topComps.length > 0) {
+          const compsData = topComps.map((l: Record<string, unknown>) => buildCompData(l));
+
+          let compSummary = `📊 Found ${listings.length} comparable sold properties. Using the top ${topComps.length}:\n\n`;
+          topComps.forEach((l: Record<string, unknown>, i: number) => {
+            const info = formatListingInfo(l);
+            const soldPrice = l.soldPrice ? `$${Number(l.soldPrice).toLocaleString()}` : "N/A";
+            compSummary += `**${i + 1}.** ${info.streetAddress}, ${info.city} — Sold: ${soldPrice}\n`;
+            compSummary += `   ${info.beds} Bed / ${info.baths} Bath / ${typeof info.sqft === "number" ? info.sqft.toLocaleString() : info.sqft} sqft\n`;
+          });
+          compSummary += "\nCreating your CMA report and running analysis...";
+
+          setProgress((p) => ({ ...p, comparables: true, compsData }));
+          addMessage("assistant", compSummary);
+
+          // ── Auto-advance: Create report + calculate ─────────
+          await createReportAndCalculate(subjectData, compsData);
+        } else {
+          setProgress((p) => ({ ...p, comparables: true, compsData: [] }));
+          addMessage(
+            "assistant",
+            "I couldn't find enough comparable sold properties nearby. You can create the report and manually add comps from the report page.\n\nWould you like me to create the report anyway? Type **\"create report\"**."
+          );
+        }
+      } else {
+        addMessage(
+          "assistant",
+          "I had trouble finding comparable properties. You can create the report and add comps manually from the report page.\n\nType **\"create report\"** to proceed."
+        );
+      }
+    } catch {
+      addMessage(
+        "assistant",
+        "Error searching for comparables. Type **\"create report\"** to create the report without comps."
+      );
+    }
+  };
+
+  // ─── Auto-step: Create report + run calculation ───────────────
+  const createReportAndCalculate = async (
+    subjectData: Record<string, unknown>,
+    compsData: Record<string, unknown>[]
+  ) => {
+    try {
+      // Create CMA report via POST /api/cma
+      const createRes = await fetch("/api/cma", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subjectProperty: subjectData,
+          comparables: compsData,
+        }),
+      });
+
+      if (!createRes.ok) {
+        throw new Error("Failed to create report");
+      }
+
+      const { id: reportId } = await createRes.json();
+
+      // Run CMA calculation
+      const calcRes = await fetch(`/api/cma/${reportId}/calculate`, {
+        method: "POST",
+      });
+
+      if (calcRes.ok) {
+        const result = await calcRes.json();
+        const priceLow = result.priceRecommendation?.low;
+        const priceMid = result.priceRecommendation?.mid;
+        const priceHigh = result.priceRecommendation?.high;
+
+        setProgress((p) => ({
+          ...p,
+          adjustments: true,
+          pricing: true,
+          reportCreated: true,
+          reportId,
+          analysisResult: result,
+        }));
+
+        addMessage(
+          "assistant",
+          `✅ CMA report created!\n\n**Recommended Price Range:**\n- Low: $${priceLow ? Number(priceLow).toLocaleString() : "N/A"}\n- **Recommended: $${priceMid ? Number(priceMid).toLocaleString() : "N/A"}**\n- High: $${priceHigh ? Number(priceHigh).toLocaleString() : "N/A"}\n\nBased on ${compsData.length} comparable sales with adjustments for size, age, location, and features.\n\nChoose how to share your report below:`
+        );
+      } else {
+        // Report created but calc failed
+        setProgress((p) => ({
+          ...p,
+          reportCreated: true,
+          reportId,
+        }));
+
+        addMessage(
+          "assistant",
+          `✅ CMA report created! I wasn't able to auto-calculate the analysis — you may need to select exactly 4 comps on the report page.\n\nYou can still publish your report using the options below:`
+        );
+      }
+    } catch (error) {
+      console.error("Create report error:", error);
+      addMessage(
+        "assistant",
+        "I had trouble creating the report. Please try again or create it manually from the dashboard."
+      );
     }
   };
 
@@ -415,7 +576,7 @@ export default function AiCmaBuilderPage() {
               AI CMA Builder
             </h1>
             <p className="text-sm text-muted-foreground">
-              Build your CMA through conversation
+              Enter a property and get a complete CMA in seconds
             </p>
           </div>
         </div>
@@ -488,28 +649,52 @@ export default function AiCmaBuilderPage() {
                             onClick={() => handleSelectFeatured(property)}
                             className="text-left bg-white dark:bg-gray-800 rounded-xl border border-border hover:border-primary/50 hover:shadow-md transition-all overflow-hidden group"
                           >
+                            {/* Thumbnail */}
                             {property.image ? (
-                              <img
-                                src={property.image}
-                                alt={property.streetAddress}
-                                className="w-full h-24 object-cover"
-                              />
+                              <div className="relative w-full h-28 overflow-hidden">
+                                <img
+                                  src={property.image}
+                                  alt={property.streetAddress}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                />
+                                <div className="absolute top-2 left-2">
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 bg-white/90 backdrop-blur-sm">
+                                    {property.propertyType}
+                                  </Badge>
+                                </div>
+                                {property.listPrice && (
+                                  <div className="absolute bottom-2 left-2">
+                                    <span className="text-xs font-bold text-white bg-black/60 backdrop-blur-sm rounded px-1.5 py-0.5">
+                                      ${Number(property.listPrice).toLocaleString()}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
                             ) : (
-                              <div className="w-full h-16 bg-gradient-to-br from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30" />
+                              <div className="relative w-full h-28 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center">
+                                <Building2 className="h-8 w-8 text-slate-300 dark:text-slate-600" />
+                                <div className="absolute top-2 left-2">
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
+                                    {property.propertyType}
+                                  </Badge>
+                                </div>
+                                {property.listPrice && (
+                                  <div className="absolute bottom-2 left-2">
+                                    <span className="text-xs font-bold text-foreground bg-background/80 backdrop-blur-sm rounded px-1.5 py-0.5">
+                                      ${Number(property.listPrice).toLocaleString()}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
                             )}
                             <div className="p-3">
-                              <div className="font-medium text-xs truncate mb-1">
+                              <div className="font-medium text-xs truncate mb-0.5">
                                 {property.streetAddress}
                               </div>
-                              <div className="text-xs text-muted-foreground mb-2">
-                                {property.city}, {property.state}
+                              <div className="text-[11px] text-muted-foreground mb-2">
+                                {property.city}, {property.state} • MLS# {property.mlsNumber}
                               </div>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                {property.listPrice && (
-                                  <span className="font-semibold text-foreground">
-                                    ${Number(property.listPrice).toLocaleString()}
-                                  </span>
-                                )}
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
                                 {property.bedrooms > 0 && (
                                   <span className="flex items-center gap-0.5">
                                     <BedDouble className="h-3 w-3" />
@@ -525,22 +710,18 @@ export default function AiCmaBuilderPage() {
                                 {property.sqft > 0 && (
                                   <span className="flex items-center gap-0.5">
                                     <Ruler className="h-3 w-3" />
-                                    {property.sqft.toLocaleString()}
+                                    {property.sqft.toLocaleString()} ft²
                                   </span>
                                 )}
                               </div>
                               <div className="mt-2 text-xs text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                                Use This Property
+                                Create CMA
                                 <ArrowRight className="h-3 w-3" />
                               </div>
                             </div>
                           </button>
                         ))}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-3 text-center">
-                        Or search for any property by typing an address or MLS
-                        number above
-                      </p>
                     </div>
                   ) : null}
                 </div>
@@ -682,7 +863,11 @@ export default function AiCmaBuilderPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
+                placeholder={
+                  progress.reportCreated
+                    ? "Type \"view report\" to see your CMA..."
+                    : "Enter MLS number or property address..."
+                }
                 rows={1}
                 className="flex-1 resize-none rounded-xl border bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
@@ -731,7 +916,7 @@ export default function AiCmaBuilderPage() {
                 />
                 <ProgressStep
                   icon={CheckCircle2}
-                  label="Create Report"
+                  label="Report Created"
                   done={progress.reportCreated}
                   active={progress.pricing && !progress.reportCreated}
                 />
@@ -800,34 +985,16 @@ export default function AiCmaBuilderPage() {
               {!progress.subjectProperty && (
                 <QuickAction
                   label="Search by MLS#"
-                  onClick={() => setInput("MLS C")}
-                />
-              )}
-              {progress.subjectProperty && !progress.comparables && (
-                <QuickAction
-                  label="Find comps nearby"
                   onClick={() => {
-                    setInput("Yes, search for comparable properties");
-                    setTimeout(handleSend, 100);
+                    setInput("MLS ");
+                    inputRef.current?.focus();
                   }}
                 />
               )}
-              {progress.comparables && !progress.pricing && (
+              {progress.reportCreated && progress.reportId && (
                 <QuickAction
-                  label="Run full analysis"
-                  onClick={() => {
-                    setInput("Run the full analysis");
-                    setTimeout(handleSend, 100);
-                  }}
-                />
-              )}
-              {progress.pricing && !progress.reportCreated && (
-                <QuickAction
-                  label="Create CMA report"
-                  onClick={() => {
-                    setInput("Create the report");
-                    setTimeout(handleSend, 100);
-                  }}
+                  label="View full report"
+                  onClick={() => router.push(`/cma/${progress.reportId}`)}
                 />
               )}
               <QuickAction
@@ -838,7 +1005,7 @@ export default function AiCmaBuilderPage() {
                       id: "welcome-reset",
                       role: "assistant",
                       content:
-                        "Let's start fresh! What property would you like to analyze?",
+                        "Let's start fresh! Enter an MLS number or property address.",
                       timestamp: new Date(),
                     },
                   ]);
@@ -849,9 +1016,18 @@ export default function AiCmaBuilderPage() {
                     pricing: false,
                     reportCreated: false,
                     reportId: null,
+                    subjectData: null,
+                    compsData: null,
+                    analysisResult: null,
                   });
                   setWebsiteUrl(null);
                   setPublishAction(null);
+                  setLoadingFeatured(true);
+                  fetch("/api/properties/featured")
+                    .then((res) => res.json())
+                    .then((data) => setFeaturedProperties(data.listings || []))
+                    .catch(() => {})
+                    .finally(() => setLoadingFeatured(false));
                 }}
               />
             </CardContent>
@@ -868,7 +1044,7 @@ export default function AiCmaBuilderPage() {
           onDesignCreated={(design) => {
             addMessage(
               "assistant",
-              `Your Canva design "${design.title}" has been created! It's now open in a new tab.`
+              `✅ Your Canva design "${design.title}" has been created! It's now open in a new tab.`
             );
           }}
         />
