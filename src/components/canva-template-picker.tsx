@@ -237,24 +237,24 @@ export function CanvaTemplatePicker({
         {!loading && template && !createdDesign && (
           <div className="space-y-4">
             <div className="rounded-xl border-2 border-purple-500 ring-2 ring-purple-500/20 overflow-hidden shadow-md">
-              {/* Full-page thumbnail */}
-              <div className="bg-muted overflow-hidden relative">
+              {/* Compact thumbnail */}
+              <div className="bg-muted overflow-hidden relative max-h-48">
                 <img
                   src={template.thumbnail.url}
                   alt={template.title}
-                  className="w-full h-auto object-contain"
+                  className="w-full h-full object-contain object-top"
                 />
-                <div className="absolute top-3 right-3">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full canva-gradient shadow-lg">
-                    <CheckCircle2 className="h-4 w-4 text-white" />
+                <div className="absolute top-2 right-2">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full canva-gradient shadow-lg">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-white" />
                   </div>
                 </div>
               </div>
 
               {/* Info */}
-              <div className="p-4">
+              <div className="p-3">
                 <p className="font-semibold text-sm">{template.title}</p>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   Your CMA data will be auto-filled into this template
                 </p>
               </div>

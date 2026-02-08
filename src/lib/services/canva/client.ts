@@ -279,17 +279,39 @@ export async function getTemplateDataset(
   console.log(
     "Template dataset raw keys:",
     Object.keys(raw),
+    "| raw sample:",
+    JSON.stringify(raw).slice(0, 300),
   );
 
-  // Canva API wraps in { dataset: { ... } } — unwrap if needed
+  // The Canva API returns: { dataset: { fieldName: { type: "text" }, ... } }
+  // We need to normalize this to: { fields: { fieldName: { type: "text" }, ... } }
+
   const dataset = (raw as { dataset?: Record<string, unknown> }).dataset;
   if (dataset) {
-    return dataset as unknown as CanvaTemplateDataset;
+    // Check if dataset already has a "fields" key (unlikely but possible)
+    if ((dataset as { fields?: unknown }).fields) {
+      console.log("Dataset has 'fields' key, using it directly");
+      return dataset as unknown as CanvaTemplateDataset;
+    }
+    // Otherwise, dataset IS the fields map — wrap it
+    console.log("Dataset IS the fields map, wrapping in { fields: ... }, keys:", Object.keys(dataset).slice(0, 10));
+    return { fields: dataset as Record<string, { name: string; type: "text" | "image"; required?: boolean }> };
   }
 
   // Maybe it's directly { fields: { ... } }
   if ((raw as { fields?: unknown }).fields) {
+    console.log("Raw has 'fields' key, using directly");
     return raw as unknown as CanvaTemplateDataset;
+  }
+
+  // Last resort: maybe the raw response IS the fields map (no wrapper at all)
+  const keys = Object.keys(raw);
+  if (keys.length > 0 && typeof raw[keys[0]] === "object" && raw[keys[0]] !== null) {
+    const firstVal = raw[keys[0]] as Record<string, unknown>;
+    if (firstVal.type === "text" || firstVal.type === "image") {
+      console.log("Raw IS the fields map (no wrapper), keys:", keys.slice(0, 10));
+      return { fields: raw as Record<string, { name: string; type: "text" | "image"; required?: boolean }> };
+    }
   }
 
   // Last resort: return empty fields so we don't crash
@@ -380,15 +402,18 @@ export async function uploadAssetFromUrl(
   url: string,
   name: string
 ): Promise<{ id: string }> {
-  // Step 1: Start the upload job
+  // Canva requires /url-asset-uploads for URL-based uploads (not /asset-uploads which is for binary)
+  // Docs: https://www.canva.dev/docs/connect/api-reference/assets/create-url-asset-upload-job/
+
+  // Step 1: Start the URL upload job
   const jobResult = await canvaRequest<{
     job: { id: string; status: string; asset?: { id: string } };
-  }>("/asset-uploads", accessToken, {
+  }>("/url-asset-uploads", accessToken, {
     method: "POST",
-    body: { url, name },
+    body: { url, name: name.slice(0, 255) },
   });
 
-  // Some responses may return the asset directly
+  // Some responses may return the asset directly on success
   if (jobResult.job?.asset?.id) {
     return { id: jobResult.job.asset.id };
   }
@@ -409,7 +434,7 @@ export async function uploadAssetFromUrl(
         asset?: { id: string };
         error?: { code: string; message: string };
       };
-    }>(`/asset-uploads/${jobId}`, accessToken);
+    }>(`/url-asset-uploads/${jobId}`, accessToken);
 
     if (pollResult.job?.asset?.id) {
       return { id: pollResult.job.asset.id };
@@ -431,33 +456,47 @@ export async function exportDesign(
   designId: string,
   format: CanvaExportFormat
 ): Promise<CanvaExportResult> {
+  // Canva export API: POST /v1/exports with design_id in body
+  // Docs: https://www.canva.dev/docs/connect/api-reference/exports/create-design-export-job/
+
   // Start export job
   const job = await canvaRequest<{ job: { id: string; status: string } }>(
-    `/designs/${designId}/exports`,
+    "/exports",
     accessToken,
     {
       method: "POST",
-      body: { format },
+      body: { design_id: designId, format },
     }
   );
 
-  // Poll for completion
+  const jobId = job.job?.id;
+  if (!jobId) {
+    throw new CanvaApiError(500, "Export job creation failed — no job ID returned");
+  }
+
+  // Poll for completion via GET /v1/exports/{exportId}
   let attempts = 0;
   const maxAttempts = 30;
   while (attempts < maxAttempts) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
     const status = await canvaRequest<{
-      job: { id: string; status: string; urls?: string[] };
-    }>(`/designs/${designId}/exports/${job.job.id}`, accessToken);
+      job: {
+        id: string;
+        status: string;
+        urls?: string[];
+        error?: { code: string; message: string };
+      };
+    }>(`/exports/${jobId}`, accessToken);
 
-    if (status.job.status === "completed" && status.job.urls?.[0]) {
+    if (status.job.status === "success" && status.job.urls?.[0]) {
       return {
         downloadUrl: status.job.urls[0],
         format: format.type,
       };
     }
     if (status.job.status === "failed") {
-      throw new CanvaApiError(500, "Canva export job failed");
+      const errMsg = status.job.error?.message || "Unknown export error";
+      throw new CanvaApiError(500, `Canva export job failed: ${errMsg}`);
     }
     attempts++;
   }
