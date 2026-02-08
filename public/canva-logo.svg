@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="cg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00C4CC"/>
+      <stop offset="50%" stop-color="#4D5BF9"/>
+      <stop offset="100%" stop-color="#7B2FF7"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#cg)"/>
+  <!-- House roof (semi-transparent) -->
+  <path d="M32 12L10 30h6v20h32V30h6L32 12z" fill="white" fill-opacity="0.25"/>
+  <!-- Bar chart bars -->
+  <rect x="18" y="38" width="7" height="10" rx="1.5" fill="white"/>
+  <rect x="28.5" y="31" width="7" height="17" rx="1.5" fill="white"/>
+  <rect x="39" y="24" width="7" height="24" rx="1.5" fill="white"/>
+  <!-- Roof peak accent -->
+  <path d="M32 12L10 30h44L32 12z" fill="white" fill-opacity="0.35" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+</svg>
