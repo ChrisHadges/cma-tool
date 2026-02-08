@@ -880,33 +880,22 @@ export default function AiCmaBuilderPage() {
                   </button>
 
                   {/* Create Website */}
-                  <button
-                    onClick={handleCreateWebsite}
-                    disabled={publishAction === "website" || websiteUrl !== null}
-                    className="text-left bg-white dark:bg-gray-800 rounded-xl border border-border hover:border-emerald-400 hover:shadow-md transition-all p-4 overflow-hidden relative group"
-                  >
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 mb-3">
-                      {publishAction === "website" ? (
-                        <Loader2 className="h-5 w-5 text-white animate-spin" />
-                      ) : (
-                        <Globe className="h-5 w-5 text-white" />
-                      )}
-                    </div>
-                    <div className="font-semibold text-sm mb-1">
-                      {websiteUrl ? "Website Published!" : "Create Website"}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {websiteUrl ? "Shareable link ready" : "Beautiful shareable website"}
-                    </p>
-                    {websiteUrl && (
-                      <div className="mt-2 flex items-center gap-2">
+                  {websiteUrl ? (
+                    <div className="text-left bg-white dark:bg-gray-800 rounded-xl border border-emerald-300 shadow-md p-4 overflow-hidden relative">
+                      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 mb-3">
+                        <CheckCircle2 className="h-5 w-5 text-white" />
+                      </div>
+                      <div className="font-semibold text-sm mb-1">
+                        Website Published!
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Shareable link ready
+                      </p>
+                      <div className="mt-3 flex items-center gap-3">
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopyUrl();
-                          }}
-                          className="text-xs text-primary hover:text-primary/80 flex items-center gap-1"
+                          onClick={() => handleCopyUrl()}
+                          className="text-xs font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 transition-colors"
                         >
                           {copiedUrl ? (
                             <>
@@ -919,17 +908,35 @@ export default function AiCmaBuilderPage() {
                           )}
                         </button>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.open(websiteUrl, "_blank");
-                          }}
-                          className="text-xs text-primary hover:text-primary/80 flex items-center gap-1"
+                          onClick={() => window.open(websiteUrl, "_blank")}
+                          className="text-xs font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 transition-colors"
                         >
                           <ExternalLink className="h-3 w-3" /> Open
                         </button>
                       </div>
-                    )}
-                  </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleCreateWebsite}
+                      disabled={publishAction === "website"}
+                      className="text-left bg-white dark:bg-gray-800 rounded-xl border border-border hover:border-emerald-400 hover:shadow-md transition-all p-4 overflow-hidden relative group"
+                    >
+                      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 mb-3">
+                        {publishAction === "website" ? (
+                          <Loader2 className="h-5 w-5 text-white animate-spin" />
+                        ) : (
+                          <Globe className="h-5 w-5 text-white" />
+                        )}
+                      </div>
+                      <div className="font-semibold text-sm mb-1">
+                        Create Website
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Beautiful shareable website
+                      </p>
+                    </button>
+                  )}
                 </div>
 
                 {/* View Full Report Button */}

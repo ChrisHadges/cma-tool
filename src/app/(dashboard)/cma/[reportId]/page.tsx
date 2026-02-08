@@ -15,7 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   Home,
   BarChart3,
-  Download,
   ArrowLeft,
   DollarSign,
   TrendingUp,
@@ -173,14 +172,12 @@ export default function CmaReportPage() {
         <div className="flex gap-2">
           <Badge
             variant={
-              report.status === "completed"
-                ? "default"
-                : report.status === "in_progress"
+              report.status === "completed" || report.status === "in_progress"
                 ? "default"
                 : "secondary"
             }
           >
-            {report.status.replace("_", " ")}
+            {report.status === "in_progress" ? "Published" : report.status.replace("_", " ")}
           </Badge>
         </div>
       </div>
@@ -280,15 +277,6 @@ export default function CmaReportPage() {
           </Card>
         </Link>
 
-        <Link href={`/cma/${reportId}/export`}>
-          <Card className="hover:bg-muted/50 transition-colors cursor-pointer h-full">
-            <CardHeader>
-              <Download className="h-8 w-8 text-primary mb-2" />
-              <CardTitle className="text-lg">Export</CardTitle>
-              <CardDescription>Advanced export options &amp; Canva templates</CardDescription>
-            </CardHeader>
-          </Card>
-        </Link>
       </div>
 
       {/* ─── Export Actions ─────────────────────────────────────── */}
