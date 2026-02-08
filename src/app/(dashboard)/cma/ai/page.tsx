@@ -239,7 +239,7 @@ export default function AiCmaBuilderPage() {
 
     try {
       // ── Step 1: Subject Property Lookup ──────────────────────
-      const mlsMatch = userMessage.match(/(?:MLS\s*#?\s*)?([A-Z]\d{5,8})/i);
+      const mlsMatch = userMessage.match(/(?:MLS\s*#?\s*)?([A-Z]{1,4}\d{5,10})/i);
 
       if (mlsMatch && !progress.subjectProperty) {
         const mlsNumber = mlsMatch[1].toUpperCase();
