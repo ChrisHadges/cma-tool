@@ -271,7 +271,30 @@ export async function getTemplateDataset(
   accessToken: string,
   templateId: string
 ): Promise<CanvaTemplateDataset> {
-  return canvaRequest(`/brand-templates/${templateId}/dataset`, accessToken);
+  const raw = await canvaRequest<Record<string, unknown>>(
+    `/brand-templates/${templateId}/dataset`,
+    accessToken
+  );
+
+  console.log(
+    "Template dataset raw keys:",
+    Object.keys(raw),
+  );
+
+  // Canva API wraps in { dataset: { ... } } — unwrap if needed
+  const dataset = (raw as { dataset?: Record<string, unknown> }).dataset;
+  if (dataset) {
+    return dataset as unknown as CanvaTemplateDataset;
+  }
+
+  // Maybe it's directly { fields: { ... } }
+  if ((raw as { fields?: unknown }).fields) {
+    return raw as unknown as CanvaTemplateDataset;
+  }
+
+  // Last resort: return empty fields so we don't crash
+  console.warn("Unexpected dataset structure:", JSON.stringify(raw).slice(0, 500));
+  return { fields: {} } as CanvaTemplateDataset;
 }
 
 // ─── Autofill Design ─────────────────────────────────────────────
@@ -357,10 +380,48 @@ export async function uploadAssetFromUrl(
   url: string,
   name: string
 ): Promise<{ id: string }> {
-  return canvaRequest("/asset-uploads", accessToken, {
+  // Step 1: Start the upload job
+  const jobResult = await canvaRequest<{
+    job: { id: string; status: string; asset?: { id: string } };
+  }>("/asset-uploads", accessToken, {
     method: "POST",
     body: { url, name },
   });
+
+  // Some responses may return the asset directly
+  if (jobResult.job?.asset?.id) {
+    return { id: jobResult.job.asset.id };
+  }
+
+  const jobId = jobResult.job?.id;
+  if (!jobId) {
+    throw new Error("Asset upload job creation failed — no job ID returned");
+  }
+
+  // Step 2: Poll for completion (up to 30s)
+  for (let i = 0; i < 15; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+
+    const pollResult = await canvaRequest<{
+      job: {
+        id: string;
+        status: string;
+        asset?: { id: string };
+        error?: { code: string; message: string };
+      };
+    }>(`/asset-uploads/${jobId}`, accessToken);
+
+    if (pollResult.job?.asset?.id) {
+      return { id: pollResult.job.asset.id };
+    }
+
+    if (pollResult.job?.status === "failed") {
+      const errMsg = pollResult.job.error?.message || "Unknown error";
+      throw new Error(`Asset upload failed: ${errMsg}`);
+    }
+  }
+
+  throw new Error("Asset upload timed out after 30 seconds");
 }
 
 // ─── Export Design ───────────────────────────────────────────────
