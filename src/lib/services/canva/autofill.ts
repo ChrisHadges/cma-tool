@@ -64,24 +64,43 @@ export function mapCmaToAutofillData(
     }),
   };
 
-  // Add comparable property data (comp_1_address, comp_2_price, etc.)
+  // Add comparable property data
+  // Supports both formats: comp_1_address (underscore) and comp1address (no underscore)
   cmaResult.comparables.forEach((comp, index) => {
     const num = index + 1;
-    const prefix = `comp_${num}`;
-    textMappings[`${prefix}_address`] = comp.property.streetAddress;
-    textMappings[`${prefix}_price`] = comp.property.soldPrice
+    const soldPrice = comp.property.soldPrice
       ? formatPrice(comp.property.soldPrice)
       : "";
-    textMappings[`${prefix}_adjusted_price`] = formatPrice(comp.adjustedPrice);
-    textMappings[`${prefix}_beds`] = String(comp.property.bedrooms || "");
-    textMappings[`${prefix}_baths`] = String(comp.property.bathrooms || "");
-    textMappings[`${prefix}_sqft`] = comp.property.sqft
+    const address = comp.property.streetAddress;
+    const beds = String(comp.property.bedrooms || "");
+    const baths = String(comp.property.bathrooms || "");
+    const sqft = comp.property.sqft
       ? `${comp.property.sqft.toLocaleString()} sq ft`
       : "";
-    textMappings[`${prefix}_year_built`] = String(comp.property.yearBuilt || "");
-    textMappings[`${prefix}_adjustment`] = formatPrice(comp.totalAdjustment);
-    textMappings[`${prefix}_distance`] = `${comp.distanceKm.toFixed(1)} km`;
-    textMappings[`${prefix}_sold_date`] = comp.property.soldDate || "";
+    const yearBuilt = String(comp.property.yearBuilt || "");
+    const soldDate = comp.property.soldDate || "";
+
+    // Underscore format: comp_1_address
+    textMappings[`comp_${num}_address`] = address;
+    textMappings[`comp_${num}_price`] = soldPrice;
+    textMappings[`comp_${num}_adjusted_price`] = formatPrice(comp.adjustedPrice);
+    textMappings[`comp_${num}_beds`] = beds;
+    textMappings[`comp_${num}_baths`] = baths;
+    textMappings[`comp_${num}_sqft`] = sqft;
+    textMappings[`comp_${num}_year_built`] = yearBuilt;
+    textMappings[`comp_${num}_adjustment`] = formatPrice(comp.totalAdjustment);
+    textMappings[`comp_${num}_distance`] = `${comp.distanceKm.toFixed(1)} km`;
+    textMappings[`comp_${num}_sold_date`] = soldDate;
+    textMappings[`comp_${num}_date_sold`] = soldDate;
+
+    // No-underscore format: comp1address
+    textMappings[`comp${num}address`] = address;
+    textMappings[`comp${num}price`] = soldPrice;
+    textMappings[`comp${num}beds`] = beds;
+    textMappings[`comp${num}baths`] = baths;
+    textMappings[`comp${num}sqft`] = sqft;
+    textMappings[`comp${num}yearbuilt`] = yearBuilt;
+    textMappings[`comp${num}datesold`] = soldDate;
   });
 
   // Map template fields to data

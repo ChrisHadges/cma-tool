@@ -162,35 +162,37 @@ export async function POST(request: NextRequest) {
     const imageFieldMap: Record<string, string> = {};
 
     // Map subject property image fields
+    // Template tags: image_1, image_2, image_3, image_4
     if (subjectImages[0]) {
+      imageFieldMap["image_1"] = subjectImages[0];
       imageFieldMap["subject_image"] = subjectImages[0];
       imageFieldMap["property_image"] = subjectImages[0];
       imageFieldMap["hero_image"] = subjectImages[0];
       imageFieldMap["main_image"] = subjectImages[0];
       imageFieldMap["cover_image"] = subjectImages[0];
-      imageFieldMap["subject_photo"] = subjectImages[0];
-      imageFieldMap["property_photo"] = subjectImages[0];
     }
     if (subjectImages[1]) {
+      imageFieldMap["image_2"] = subjectImages[1];
       imageFieldMap["subject_image_2"] = subjectImages[1];
-      imageFieldMap["property_image_2"] = subjectImages[1];
     }
     if (subjectImages[2]) {
+      imageFieldMap["image_3"] = subjectImages[2];
       imageFieldMap["subject_image_3"] = subjectImages[2];
-      imageFieldMap["property_image_3"] = subjectImages[2];
     }
     if (subjectImages[3]) {
+      imageFieldMap["image_4"] = subjectImages[3];
       imageFieldMap["subject_image_4"] = subjectImages[3];
-      imageFieldMap["property_image_4"] = subjectImages[3];
     }
 
     // Map comp image fields
+    // Template tags: compimage1, compimage2, compimage3, compimage4
     for (let i = 0; i < comps.length && i < 4; i++) {
       const compImages = (comps[i].images as string[] | null) || [];
       const num = i + 1;
       if (compImages[0]) {
+        imageFieldMap[`compimage${num}`] = compImages[0];
         imageFieldMap[`comp_${num}_image`] = compImages[0];
-        imageFieldMap[`comp_${num}_photo`] = compImages[0];
+        imageFieldMap[`comp${num}image`] = compImages[0];
       }
     }
 
