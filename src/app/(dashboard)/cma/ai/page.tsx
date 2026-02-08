@@ -260,7 +260,7 @@ export default function AiCmaBuilderPage() {
             );
 
             // ── Auto-advance: Find Comps ──────────────────────
-            await findComparables(mlsNumber, subjectData);
+            await findComparables(listing, subjectData);
           } else {
             addMessage(
               "assistant",
@@ -348,27 +348,68 @@ export default function AiCmaBuilderPage() {
 
   // ─── Auto-step: Find comparables ──────────────────────────────
   const findComparables = async (
-    mlsNumber: string,
+    subjectListing: Record<string, unknown>,
     subjectData: Record<string, unknown>
   ) => {
     try {
-      const res = await fetch(`/api/properties/${mlsNumber}/similar`);
+      const mapData = subjectListing.map as Record<string, number> | undefined;
+      const lat = mapData?.latitude;
+      const lng = mapData?.longitude;
+
+      if (!lat || !lng) {
+        // Fallback: no coordinates, try city-based search
+        addMessage("assistant", "⚠️ No coordinates for this property. Searching by city instead...");
+      }
+
+      // 18 months ago for sold date filter
+      const eighteenMonthsAgo = new Date();
+      eighteenMonthsAgo.setMonth(eighteenMonthsAgo.getMonth() - 18);
+      const minSoldDate = eighteenMonthsAgo.toISOString().slice(0, 10);
+
+      // Build search params: 10 mile radius, sold in last 18 months
+      const searchParams = new URLSearchParams();
+      if (lat && lng) {
+        searchParams.set("lat", String(lat));
+        searchParams.set("long", String(lng));
+        searchParams.set("radius", "10"); // 10 miles
+      } else {
+        // Fallback to city search
+        const addr = subjectListing.address as Record<string, string> | undefined;
+        if (addr?.city) searchParams.set("city", addr.city);
+      }
+      searchParams.set("status", "U");
+      searchParams.set("lastStatus", "Sld");
+      searchParams.set("type", "sale");
+      searchParams.set("class", "residential");
+      searchParams.set("minSoldDate", minSoldDate);
+      searchParams.set("sortBy", "soldDateDesc");
+      searchParams.set("resultsPerPage", "20");
+
+      const res = await fetch(`/api/properties/search?${searchParams.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        const listings = data.listings || [];
+        const listings = (data.listings || []) as Record<string, unknown>[];
 
-        // Take the top 4 most relevant comps
-        const topComps = listings.slice(0, 4);
+        // Filter out the subject property itself
+        const subjectMls = subjectListing.mlsNumber as string;
+        const filtered = listings.filter(
+          (l) => (l.mlsNumber as string) !== subjectMls
+        );
 
-        if (topComps.length > 0) {
-          const compsData = topComps.map((l: Record<string, unknown>) => buildCompData(l));
+        // Always pick 4 comps
+        const topComps = filtered.slice(0, 4);
 
-          let compSummary = `📊 Found ${listings.length} comparable sold properties. Using the top ${topComps.length}:\n\n`;
-          topComps.forEach((l: Record<string, unknown>, i: number) => {
+        if (topComps.length >= 1) {
+          const compsData = topComps.map((l) => buildCompData(l));
+
+          let compSummary = `📊 Found ${filtered.length} comparable sold properties (within 10 miles, last 18 months). Using ${topComps.length}:\n\n`;
+          topComps.forEach((l, i) => {
             const info = formatListingInfo(l);
             const soldPrice = l.soldPrice ? `$${Number(l.soldPrice).toLocaleString()}` : "N/A";
-            compSummary += `**${i + 1}.** ${info.streetAddress}, ${info.city} — Sold: ${soldPrice}\n`;
-            compSummary += `   ${info.beds} Bed / ${info.baths} Bath / ${typeof info.sqft === "number" ? info.sqft.toLocaleString() : info.sqft} sqft\n`;
+            const soldDate = l.soldDate ? String(l.soldDate).slice(0, 10) : "";
+            compSummary += `**${i + 1}.** ${info.streetAddress}, ${info.city} — Sold: ${soldPrice}`;
+            if (soldDate) compSummary += ` (${soldDate})`;
+            compSummary += `\n   ${info.beds} Bed / ${info.baths} Bath / ${typeof info.sqft === "number" ? info.sqft.toLocaleString() : info.sqft} sqft\n`;
           });
           compSummary += "\nCreating your CMA report and running analysis...";
 
@@ -381,7 +422,7 @@ export default function AiCmaBuilderPage() {
           setProgress((p) => ({ ...p, comparables: true, compsData: [] }));
           addMessage(
             "assistant",
-            "I couldn't find enough comparable sold properties nearby. You can create the report and manually add comps from the report page.\n\nWould you like me to create the report anyway? Type **\"create report\"**."
+            "I couldn't find comparable sold properties within 10 miles in the last 18 months. You can create the report and manually add comps from the report page.\n\nWould you like me to create the report anyway? Type **\"create report\"**."
           );
         }
       } else {
