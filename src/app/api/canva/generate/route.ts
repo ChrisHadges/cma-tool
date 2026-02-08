@@ -156,22 +156,71 @@ export async function POST(request: NextRequest) {
 
     // ── Upload property images ──────────────────────────────────
 
-    const images = subject.images as string[] | null;
-    if (images && images.length > 0) {
+    // Build a map of image field names to their source URLs
+    // Subject property images
+    const subjectImages = (subject.images as string[] | null) || [];
+    const imageFieldMap: Record<string, string> = {};
+
+    // Map subject property image fields
+    if (subjectImages[0]) {
+      imageFieldMap["subject_image"] = subjectImages[0];
+      imageFieldMap["property_image"] = subjectImages[0];
+      imageFieldMap["hero_image"] = subjectImages[0];
+      imageFieldMap["main_image"] = subjectImages[0];
+      imageFieldMap["cover_image"] = subjectImages[0];
+      imageFieldMap["subject_photo"] = subjectImages[0];
+      imageFieldMap["property_photo"] = subjectImages[0];
+    }
+    if (subjectImages[1]) {
+      imageFieldMap["subject_image_2"] = subjectImages[1];
+      imageFieldMap["property_image_2"] = subjectImages[1];
+    }
+    if (subjectImages[2]) {
+      imageFieldMap["subject_image_3"] = subjectImages[2];
+      imageFieldMap["property_image_3"] = subjectImages[2];
+    }
+
+    // Map comp image fields
+    for (let i = 0; i < comps.length && i < 4; i++) {
+      const compImages = (comps[i].images as string[] | null) || [];
+      const num = i + 1;
+      if (compImages[0]) {
+        imageFieldMap[`comp_${num}_image`] = compImages[0];
+        imageFieldMap[`comp_${num}_photo`] = compImages[0];
+      }
+    }
+
+    // Upload each unique image and assign to matching template fields
+    const uploadedAssets: Record<string, string> = {}; // url -> asset_id
+
+    for (const [fieldName, fieldDef] of Object.entries(dataset.fields)) {
+      if (fieldDef.type !== "image") continue;
+
+      // Match template field name to our image map (fuzzy)
+      const normalized = fieldName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+      const imageUrl =
+        imageFieldMap[fieldName] ||
+        imageFieldMap[normalized] ||
+        Object.entries(imageFieldMap).find(
+          ([key]) => normalized.includes(key) || key.includes(normalized)
+        )?.[1] ||
+        subjectImages[0]; // fallback: use subject photo for any unmatched image field
+
+      if (!imageUrl) continue;
+
       try {
-        const asset = await uploadAssetFromUrl(
-          accessToken,
-          images[0],
-          `${subject.streetAddress} - Property Photo`
-        );
-        // Add image asset to any image fields in the template
-        for (const [fieldName, fieldDef] of Object.entries(dataset.fields)) {
-          if (fieldDef.type === "image") {
-            autofillData[fieldName] = { type: "image", asset_id: asset.id };
-          }
+        // Reuse already-uploaded assets
+        if (!uploadedAssets[imageUrl]) {
+          const asset = await uploadAssetFromUrl(
+            accessToken,
+            imageUrl,
+            `CMA Photo - ${fieldName}`
+          );
+          uploadedAssets[imageUrl] = asset.id;
         }
+        autofillData[fieldName] = { type: "image", asset_id: uploadedAssets[imageUrl] };
       } catch (err) {
-        console.error("Image upload failed, continuing without it:", err);
+        console.error(`Image upload failed for ${fieldName}:`, err);
       }
     }
 
